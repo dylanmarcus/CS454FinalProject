@@ -1,8 +1,12 @@
 
+import unicodedata
+
 
 def sequitur(input):
-	# starting rule is always at rules[0]
-	rules = [""]
+	STARTRULE = ""
+	UNI = 191
+	RULES = {}
+
 	diagramTable = []
 	diagram = ""
 
@@ -10,58 +14,59 @@ def sequitur(input):
 	while inputHead < len(input)-1:
 		diagram = input[inputHead] + input[inputHead+1]
 		if diagram not in diagramTable:
-			if diagram in rules[1:]:
-				rules[0] += str(rules.index(diagram))
+			if diagram in RULES:
+				STARTRULE += RULES[diagram][0]
+				RULES[diagram][1] += 1
+				print(RULES[diagram][0] + " inc: " + str(RULES[diagram][1]))
 				inputHead += 1
 			else:
 				diagramTable.append(diagram)
-				try:
-					rules[0] += input[inputHead]
-				except TypeError:
-					rules += input[inputHead]
+				STARTRULE += input[inputHead]
 		else:
 			# add diagram to the start rule which will be soon replaced
-			rules[0] += diagram
+			STARTRULE += diagram
 			# create new rule
-			rules.append(diagram)
+			RULES.update({diagram: [chr(UNI), 2]})
+			print(RULES[diagram][0] + " new: " + str(RULES[diagram][1]))
+			UNI += 1
 			# apply new rule to the start rule
-			rules[0] = rules[0].replace(diagram, str(rules.index(diagram)))
+			STARTRULE = STARTRULE.replace(diagram, RULES[diagram][0])
 			# update the diagram table
 			diagramTable = []
-			for i in range(len(rules[0])-1):
-				diagramTable.append(rules[0][i] + rules[0][i+1])
+			for i in range(len(STARTRULE)-1):
+				diagramTable.append(STARTRULE[i] + STARTRULE[i+1])
 			# make sure we don't read diagram[2] twice
 			inputHead += 1
 			
-		if len(rules[0]) > 3:
-			diagramTable = updateStartRule(rules, diagramTable)
+		diagramTable, STARTRULE, UNI = updateStartRule(diagramTable, STARTRULE, UNI, RULES)
 		inputHead += 1
 
 	if inputHead == len(input)-1:
-		rules[0] += input[inputHead]
+		STARTRULE += input[inputHead]
 
-	diagramTable = updateStartRule(rules, diagramTable)
-	return rules
+	diagramTable, STARTRULE, UNI = updateStartRule(diagramTable, STARTRULE, UNI, RULES)
+	return STARTRULE, RULES
 
 
 # This funciton is similar to sequirtur but is called to go through
 # the starting rule to find new rules found by sequencing through 
 # the starting rule as we would on an input string.
-def updateStartRule(rules, diagramTable):
+def updateStartRule(diagramTable, STARTRULE, UNI, RULES):
 	newStartRule = ""
 	newDiagramTable = []
 	diagram = ""
 
 	head = 0
-	while head < len(rules[0])-1:
-		diagram = rules[0][head] + rules[0][head+1]
+	while head < len(STARTRULE)-1:
+		diagram = STARTRULE[head] + STARTRULE[head+1]
 		if diagram not in newDiagramTable:
 			newDiagramTable.append(diagram)
-			newStartRule += rules[0][head]
+			newStartRule += STARTRULE[head]
 		else:
 			newStartRule += diagram
-			rules.append(diagram)
-			newStartRule = newStartRule.replace(diagram, str(rules.index(diagram)))
+			RULES.update({diagram: [chr(UNI), 2]})
+			UNI += 1
+			newStartRule = newStartRule.replace(diagram, RULES[diagram][0])
 			newDiagramTable = []
 			for i in range(len(newStartRule)-1):
 				newDiagramTable.append(newStartRule[i] + newStartRule[i+1])
@@ -69,14 +74,15 @@ def updateStartRule(rules, diagramTable):
 
 		head += 1
 
-	if head < len(rules[0]):
-		newStartRule += rules[0][head]
-	if rules[0] != newStartRule:
-		rules[0] = newStartRule
-		return newDiagramTable
+	if head < len(STARTRULE):
+		newStartRule += STARTRULE[head]
+	if STARTRULE != newStartRule:
+		return newDiagramTable, newStartRule, UNI
 
-	return diagramTable
-
+	return diagramTable, STARTRULE, UNI
 
 
-print(sequitur("abcdbcabcd"))
+
+start, rules = sequitur("abcdbcabcd")
+print(start)
+print(rules)
