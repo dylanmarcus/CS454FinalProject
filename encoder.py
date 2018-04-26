@@ -1,5 +1,6 @@
 import unicodedata
 import itertools
+import math
 
 # https://docs.python.org/3/library/itertools.html#itertools-recipes
 def pairwise(iterable):
@@ -9,21 +10,44 @@ def pairwise(iterable):
     return zip(a, b)
 
 #http://ls.pwd.io/2014/08/singly-and-doubly-linked-lists-in-python/
-class Node(object):
- 
-    def __init__(self, data, prev, next):
+class Node:
+
+    def __init__(self, data, prev=None, next=None):
         self.data = data
         self.prev = prev
         self.next = next
- 
- 
-class DoubleList(object):
- 
+
+    def hasChild(self):
+        return (self.prev != None) or (self.next != None)
+
+    def __repr__(self):
+        return "<Node({})>".format(self.data)
+
+class SequenceArray:
+
     head = None
     tail = None
- 
+
+    def __init__(self, capacity):
+        self.pool = [ Node( None ) for _ in range(capacity) ]
+        self.nextIndex = 0
+
+    def newNode(self, data):
+        tmpNode = self.pool[ self.nextIndex ]
+        self.nextIndex += 1
+        tmpNode.data = data
+        return tmpNode
+
+    #so max can be called on list instead of head
+    def __iter__(self):
+        node = self.head
+        while node is not None:
+            yield node
+            node = node.next
+        raise StopIteration
+
     def append(self, data):
-        new_node = Node(data, None, None)
+        new_node = self.newNode(data)
         if self.head is None:
             self.head = self.tail = new_node
         else:
@@ -31,10 +55,10 @@ class DoubleList(object):
             new_node.next = None
             self.tail.next = new_node
             self.tail = new_node
- 
+
     def remove(self, node_value):
         current_node = self.head
- 
+
         while current_node is not None:
             if current_node.data == node_value:
                 # if it's not the first element
@@ -45,9 +69,59 @@ class DoubleList(object):
                     # otherwise we have no prev (it's None), head is the next one, and prev becomes None
                     self.head = current_node.next
                     current_node.next.prev = None
- 
+
             current_node = current_node.next
- 
+
+    def __repr__(self):
+        """
+        current_node = self.head
+        while current_node is not None:
+            print(current_node.data)
+            current_node = current_node.next
+        print( "*"*50 )
+        """
+        #return "<SequenceArray(head={}, tail={})>".format(self.head, self.tail)
+        return str(self.pool)
+
+class DoubleList:
+
+    head = None
+    tail = None
+    
+    def __iter__(self):
+        node = self.head
+        while node is not None:
+            yield node
+            node = node.next
+        raise StopIteration
+
+    def append(self, node):
+       
+        if self.head is None:
+            self.head = self.tail = node
+        else:
+            node.prev = self.tail
+            node.next = None
+            self.tail.next = node
+            self.tail = node
+
+    def remove(self, node):
+        if node.next is node.prev is None:
+            return
+        elif node is self.head:
+            self.head = node.next
+            self.head.prev = None
+            node.prev = node.next = None
+        elif node is self.tail:
+            self.tail = node.prev
+            self.tail.next = None
+            node.prev = node.next = None
+        else:
+            node.prev.next = node.next
+            node.next.prev = node.prev
+            node.prev = node.next = None
+        
+
     def show(self):
         print("Show list data:")
         current_node = self.head
@@ -55,23 +129,49 @@ class DoubleList(object):
             print(current_node.data)
             current_node = current_node.next
         print( "*"*50 )
- 
 
-class rule():
-    def __init__(self, diagram, symbol):
-        self.count = 1
-        self.diagram = diagram
-        self.phrase = symbol 
+    def __repr__(self):
+        return str( list(self) )
 
-class encoder():
+class PriorityQueue:
+    def __init__( self, size ):
+        self.frequencyBins = [ DoubleList() for _ in range( size ) ]
+
+    def updateFrequency(self, node):
+        oldIndex = node.data.count - 3
+        inLastBin = oldIndex >= len(self.frequencyBins) - 2
+        inBin = oldIndex > 0
+        #(count - 4) puts as at second to last bin the last bin stores different frequencies
+        if inBin and not inLastBin:
+            self.frequencyBins[ oldIndex ].remove(node)
+        newIndex = oldIndex if inLastBin else oldIndex + 1
+        self.frequencyBins[ newIndex ].append(node)
+
+class PairRecord:
+    def __init__(self, count, first):
+        self.count = count
+        self.first = first 
+
+    def __repr__(self):
+        return "<PairRecord({},{})>".format( self.count, self.first )
+
+
+class Encoder:
 
     def __init__(self, filename):
-        self.diagrams = {}
-        self.rules = []
+        self.activePairs = {}
         self.Uni = 191
-        self.rulePos = 0
         with open(filename) as f:
-           self.startRule = f.read()
+            startRule = f.read()
+        
+        n = len(startRule)
+        sizePq = math.ceil( math.sqrt(n) )
+        #allocate exact space for sequence array
+        self.sequenceArray = SequenceArray( n )
+        #allocate space for priority queue 
+        self.priorQueue = PriorityQueue( sizePq )
+        for symbol in startRule:
+            self.sequenceArray.append( symbol )
 
     def nextUni(self):
         currentUni = chr(self.Uni)
@@ -79,20 +179,24 @@ class encoder():
         return currentUni
 
     def generateDiagramFreq(self):
-        for (a,b) in pairwise(self.startRule):
-            print('gendfreq',a,b)
-            diagram = a + b
-            #if the diagram exists add one to the rule count
-            if diagram in self.diagrams:
-                self.rules[ self.diagrams[diagram] ].count += 1
-            #else add the diagram index to diagrams and append a new rule                       
-            else:
-                self.diagrams[ diagram ] = self.rulePos
-                self.rulePos += 1
-                self.rules.append( rule( diagram, self.nextUni() ) )
+        for (a,b) in pairwise(self.sequenceArray):
+            pair = a.data + b.data
+            if pair not in self.activePairs:
+                prNode = Node( PairRecord(1,a) )                
+                self.activePairs[ pair ] = prNode 
+            #pointers to pairs constant time
+            prNode = self.activePairs[ pair ]
+            if prNode.data.count == 1:
+                prNode.data.count += 1
+                self.priorQueue.updateFrequency( prNode )
+            else:                
+                prNode.data.count += 1
+                self.priorQueue.updateFrequency( prNode )                                
 
-    def updateRuleCount(self, diagram ):
-        self.rules[ self.diagrams[ diagram ] ]
+    def updateRuleCount(self, rule ):
+        self.priorQueue.append( rule )
+        self.rules.remove( rule )
+        self.diagrams = {}
 
     def replaceMostFreq(self):
         self.generateDiagramFreq()
@@ -102,28 +206,26 @@ class encoder():
         #TODO else delete rule? track rules with count eq. 1 seperately?
         print(maxRule.phrase, maxRule.diagram, maxRule.count, \
               'Updated Start Rule==>', self.startRule )
-        #TODO update rules count 
+        #TODO update rules count
         return maxRule
 
     def compress(self):
         print('Before Most Frequent Update:', self.startRule)
         maxRule = self.replaceMostFreq()
-        self.updateRuleCount( maxRule.count, maxRule.diagram )
+        self.updateRuleCount( maxRule )
         while maxRule.count > 1 and len(self.startRule) > 2:
-            print('Before Most Frequent Update:', self.startRule)            
+            print('Before Most Frequent Update:', self.startRule)
             maxRule = self.replaceMostFreq()
-            self.updateRuleCount(maxRule.count, maxRule.diagram)                
-        
-        
+            self.updateRuleCount( maxRule )
+
+
 
 def main():
-    c = encoder('test.txt')
-    d = DoubleList()
-    d.append(1)
-    d.append(5)
-    d.append(10)
-    d.append(15)
-    d.show()
+    c = Encoder('test.txt')
+    c.generateDiagramFreq()
+    for bin in c.priorQueue.frequencyBins:
+        bin.show()
+
 if __name__ == "__main__":
     main()
-    
+
