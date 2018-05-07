@@ -2,10 +2,28 @@
 import unicodedata
 
 
+# used so a rule can be looked up by its left or right hand side
+class TwoWayDict(dict):
+    def __setitem__(self, key, value):
+        # Remove any previous connections with these values
+        if key in self:
+            del self[key]
+        if value in self:
+            del self[value]
+        dict.__setitem__(self, key, value)
+        dict.__setitem__(self, value, key)
+
+    def __delitem__(self, key):
+        dict.__delitem__(self, self[key])
+        dict.__delitem__(self, key)
+
+
 def sequitur(input):
 	STARTRULE = ""
 	UNI = 191
-	RULES = {}
+	RULES = TwoWayDict()
+	COUNT = {}
+	PARENT = {}
 
 	diagramTable = []
 	diagram = ""
@@ -15,9 +33,8 @@ def sequitur(input):
 		diagram = input[inputHead] + input[inputHead+1]
 		if diagram not in diagramTable:
 			if diagram in RULES:
-				STARTRULE += RULES[diagram][0]
-				RULES[diagram][1] += 1
-				print(RULES[diagram][0] + " inc: " + str(RULES[diagram][1]))
+				STARTRULE += RULES[diagram]
+				COUNT[RULES[diagram]] += 1
 				inputHead += 1
 			else:
 				diagramTable.append(diagram)
@@ -26,11 +43,14 @@ def sequitur(input):
 			# add diagram to the start rule which will be soon replaced
 			STARTRULE += diagram
 			# create new rule
-			RULES.update({diagram: [chr(UNI), 2]})
-			print(RULES[diagram][0] + " new: " + str(RULES[diagram][1]))
+			RULES[chr(UNI)] = diagram
+			COUNT[chr(UNI)] = 2
 			UNI += 1
+			# if an existing rule goes into this new rule, set its parent
+			if diagram[0] in RULES or diagram[1] in RULES:
+				setParent(diagram, RULES, PARENT)
 			# apply new rule to the start rule
-			STARTRULE = STARTRULE.replace(diagram, RULES[diagram][0])
+			STARTRULE = STARTRULE.replace(diagram, RULES[diagram])
 			# update the diagram table
 			diagramTable = []
 			for i in range(len(STARTRULE)-1):
@@ -38,20 +58,20 @@ def sequitur(input):
 			# make sure we don't read diagram[2] twice
 			inputHead += 1
 			
-		diagramTable, STARTRULE, UNI = updateStartRule(diagramTable, STARTRULE, UNI, RULES)
+		diagramTable, STARTRULE, UNI = updateStartRule(diagramTable, STARTRULE, UNI, RULES, COUNT, PARENT)
 		inputHead += 1
 
 	if inputHead == len(input)-1:
 		STARTRULE += input[inputHead]
 
-	diagramTable, STARTRULE, UNI = updateStartRule(diagramTable, STARTRULE, UNI, RULES)
-	return STARTRULE, RULES
+	diagramTable, STARTRULE, UNI = updateStartRule(diagramTable, STARTRULE, UNI, RULES, COUNT, PARENT)
+	return STARTRULE, RULES, COUNT
 
 
 # This funciton is similar to sequirtur but is called to go through
 # the starting rule to find new rules found by sequencing through 
 # the starting rule as we would on an input string.
-def updateStartRule(diagramTable, STARTRULE, UNI, RULES):
+def updateStartRule(diagramTable, STARTRULE, UNI, RULES, COUNT, PARENT):
 	newStartRule = ""
 	newDiagramTable = []
 	diagram = ""
@@ -63,13 +83,35 @@ def updateStartRule(diagramTable, STARTRULE, UNI, RULES):
 			newDiagramTable.append(diagram)
 			newStartRule += STARTRULE[head]
 		else:
+			# make new rule
 			newStartRule += diagram
-			RULES.update({diagram: [chr(UNI), 2]})
+			RULES[chr(UNI)] = diagram
+			COUNT[chr(UNI)] = 2
 			UNI += 1
-			newStartRule = newStartRule.replace(diagram, RULES[diagram][0])
+			# if an existing rule goes into this new rule, set its parent
+			if diagram[0] in RULES or diagram[1] in RULES:
+				setParent(diagram, RULES, PARENT)
+			newStartRule = newStartRule.replace(diagram, RULES[diagram])
 			newDiagramTable = []
 			for i in range(len(newStartRule)-1):
 				newDiagramTable.append(newStartRule[i] + newStartRule[i+1])
+			# subtract 1 from the count of a rule that appears in this diagram
+			if diagram[0] in RULES or diagram[1] in RULES:
+				if diagram[0] in RULES:
+					symbol = RULES[RULES[diagram[0]]]
+					COUNT[symbol] -= 1
+				if diagram[1] in RULES:
+					symbol = RULES[RULES[diagram[1]]]
+					COUNT[symbol] -= 1
+				# does this rule not satisfy rule utility?
+				if COUNT[symbol] < 2:
+					# replace its symbol with its right-hand-side in its parent
+					for p in PARENT[symbol]:
+						RULES[p] = RULES[p].replace(symbol, RULES[symbol])
+					# delete the unutilized rule
+					del RULES[symbol]
+					del COUNT[symbol]
+					del PARENT[symbol]
 			head += 1
 
 		head += 1
@@ -82,7 +124,21 @@ def updateStartRule(diagramTable, STARTRULE, UNI, RULES):
 	return diagramTable, STARTRULE, UNI
 
 
+def setParent(diagram, RULES, PARENT):
+	if diagram[0] in RULES:
+		if diagram[0] in PARENT:
+			PARENT[diagram[0]] += RULES[diagram]
+		else:
+			PARENT[diagram[0]] = RULES[diagram]
+	if diagram[1] in RULES:
+		if diagram[1] in PARENT:
+			PARENT[diagram[1]] += RULES[diagram]
+		else:
+			PARENT[diagram[1]] = RULES[diagram]
 
-start, rules = sequitur("abcdbcabcd")
+
+
+start, rules, count = sequitur("abcdbcabcd")
 print(start)
 print(rules)
+print(count)
