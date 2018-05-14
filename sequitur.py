@@ -37,7 +37,6 @@ class Grammar:
 					self.STARTRULE += existingRule
 					inputHead += 1
 				else:
-					diagramTable.append(diagram)
 					self.STARTRULE += input[inputHead]
 					if self.isSymbol(input[inputHead]):
 						self.setParent(input[inputHead], '$')
@@ -55,6 +54,8 @@ class Grammar:
 			inputHead += 1
 
 			if verbose:
+				print("diagram: " + diagram)
+				print("Diagram Table: " + str(diagramTable))
 				self.printGrammarData()
 
 		if inputHead == len(input)-1:
@@ -202,12 +203,12 @@ class Grammar:
 #------------------------------------------------------------------------------
 
 	def printGrammarData(self):
-		print('Start Rule:\n' + self.STARTRULE)
+		print('Start Rule: ' + self.STARTRULE)
 		print('Rules:')
 		left = list(self.RULES.keys())[::2]
 		right = list(self.RULES.values())[::2]
 		for rule in range(len(left)):
 			print(left[rule] + ' -> ' + right[rule])
-		print('Parent:\n' + str(self.PARENT) + '\n')
+		print('')
 
 #------------------------------------------------------------------------------

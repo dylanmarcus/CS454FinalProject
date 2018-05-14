@@ -13,17 +13,28 @@ def encodeGrammar(G):
 	return grammarStream
 
 
+def compressionPerformance(input, stream, grammarStream):
+	uncompressed = len(input)
+	compressed = len(stream) + len(grammarStream)
+	performance = uncompressed/compressed
+	print('Compressed ' + str(uncompressed) + ' characters into ' + str(compressed))
+	print('Performance score of ' + str(performance))
+
+
 def main():
-	inputFile = open('input.txt', 'r')
+	inputFile = open('shakespeare.txt', 'r')
 	inputText = inputFile.read()
-	print("Input text:\n" + inputText)
+	inputFile.close()
+	print("Input text: " + inputText + '\n')
 
 	# Sequitur
 	G = seq.Grammar()
-	seqStream, seqGrammar = G.sequitur(inputText, True)
+	seqStream, seqGrammar = G.sequitur(inputText, False)
 	seqGrammarStream = encodeGrammar(seqGrammar)
-	print("Symbol Stream:\n" + seqStream)
-	print("Grammar Stream:\n" + seqGrammarStream)
+	print('Symbol Stream:\n' + seqStream)
+	print('Grammar Stream:\n' + seqGrammarStream + '\n')
+	compressionPerformance(inputText, seqStream, seqGrammarStream)
+
 
 
 main()
