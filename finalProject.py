@@ -22,14 +22,31 @@ def compressionPerformance(input, stream, grammarStream):
 
 
 def main():
-	inputFile = open('shakespeare.txt', 'r')
+	print('Which text would you like to compress?')
+	print('small input (enter 1)')
+	print('DNA sequence (enter 2)')
+	print('Shakespeare passage (enter 3)')
+	fileName = input('enter text choice: ')
+	if fileName == '1':
+		fileName = 'smallinput.txt'
+	elif fileName == '2':
+		fileName = 'dna.txt'
+	elif fileName == '3':
+		fileName = 'shakespeare.txt'
+	verbose = (input('Verbose mode? (y or n): ')).lower()
+	if verbose == 'y':
+		verbose = True
+	elif verbose == 'n':
+		verbose = False
+
+	inputFile = open(fileName, 'r')
 	inputText = inputFile.read()
 	inputFile.close()
 	print("Input text: " + inputText + '\n')
 
 	# Sequitur
-	G = seq.Grammar()
-	seqStream, seqGrammar = G.sequitur(inputText, False)
+	G = seq.sequiturGrammar()
+	seqStream, seqGrammar = G.sequitur(inputText, verbose)
 	seqGrammarStream = encodeGrammar(seqGrammar)
 	print('Symbol Stream:\n' + seqStream)
 	print('Grammar Stream:\n' + seqGrammarStream + '\n')

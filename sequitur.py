@@ -15,7 +15,7 @@ class TwoWayDict(dict):
         dict.__delitem__(self, key)
 
 
-class Grammar:
+class sequiturGrammar:
 
 	def __init__(self):
 		self.RULES = TwoWayDict()
