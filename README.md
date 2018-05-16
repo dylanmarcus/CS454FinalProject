@@ -1,5 +1,6 @@
 # CS454FinalProject
 
+
 Dylan Marcus
 Devin Brown
 Colin Franceschini
@@ -12,7 +13,12 @@ Verbose mode will print out the grammar at each iteration to see the algorithm w
 The starting rule along with an encoded grammer (encoded by extrapolating the right-hand side of each rule separated with a '#' as per the paper).
 The performance score is the lenght of the original input divided by the total lenght of compressed output (starting rule + encoded grammar).
 
+run
+```
+python3 encoder.py
+```
+to test re-pair algorithm
+the test prints the rules from first
+rule to the last rule
+followed by the compression ration
 
-To run the repair algorithm, run "repair.py" using python3.
-REPAIR IS NOT FULLY FUNCTIONING.
-It will print out its states as it is working, but will fail.

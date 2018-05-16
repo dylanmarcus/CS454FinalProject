@@ -12,18 +12,22 @@ def pairwise(iterable):
     next(b, None)
     return zip(a, b)
 
+
+
 #http://ls.pwd.io/2014/08/singly-and-doubly-linked-lists-in-python/
 class Node:
-
+    
+    #added default init values for prev and next
     def __init__(self, data, prev=None, next=None):
         self.data = data
         self.prev = prev
         self.next = next
-    
+        
+    #added iter functionality to prefab class
     def __iter__(self):
         yield self
         node = self.next
-        while node is not None and node is not self:
+        while node is not None and node is not self and node.next is not node:
             yield node
             node = node.next
         raise StopIteration
@@ -31,9 +35,16 @@ class Node:
     def hasChild(self):
         return (self.prev != None) or (self.next != None)
 
+    #added iter functionality to prefab class
     def __repr__(self):
         return "<Node({})>".format(self.data)
 
+#this data strucutred stores nodes where the data is a pair
+#containing with the first being a symbol and the second an index
+#to the current position in the sequence array
+#the nodes next and prev are set to self on init and will point to
+#repeated occurences of the left most thing in repeated pairs
+#THIS ALLOWS FOR REPLACEMENT OF MOST FREQUENT PAIRS IN CONSTANT TIME
 class SequenceArray:
 
     def __init__(self, capacity):
@@ -42,6 +53,8 @@ class SequenceArray:
 
     def newNode(self, data):
         tmpNode = self.pool[ self.nextIndex ]
+        tmpNode.next = tmpNode
+        tmpNode.prev = tmpNode
         tmpNode.data = (data, self.nextIndex) 
         self.nextIndex += 1
         return tmpNode
@@ -52,8 +65,6 @@ class SequenceArray:
 
     def append(self, data):
         new_node = self.newNode(data)
-        new_node.prev = new_node
-        new_node.next = new_node
 
     def remove(self, item ):
         nextIndex = item.data[INDEX] + 1
@@ -67,17 +78,35 @@ class SequenceArray:
         else:
             item.next = None
 
+    def getNext(self, node):
+        if node.data is None:
+            return node.next
+        
+        index = node.data[INDEX] + 1
+        if index < len(self.pool):
+            nextNode = self.pool[index]
+            if nextNode.data is None:
+                nextNode = nextNode.next
+            else:
+                assert nextNode.data is not None
+        else:
+            nextNode = None
+        return nextNode
+
+    def deleteNext(self, node ):
+        oldNext = self.getNext(node)
+        assert oldNext is not None
+        newNext = self.getNext( oldNext )
+        oldNext.next = newNext
+        oldNext.prev = oldNext.data = None
+
+    
     def __repr__(self):
-        """
-        current_node = self.head
-        while current_node is not None:
-            print(current_node.data)
-            current_node = current_node.next
-        print( "*"*50 )
-        """
-        #return "<SequenceArray(head={}, tail={})>".format(self.head, self.tail)
         return str(self.pool)
-#Test Remove
+
+#this data structure is used to link pairs of symbols with the
+#same number of counts but different symbols values
+#a node in the list points                                       
 class DoubleList:
 
     head = None
@@ -116,11 +145,12 @@ class DoubleList:
             node.next.prev = node.prev
         node.prev = node.next = None
 
+
+
     def show(self):
         print("Show list data:")
         current_node = self.head
         while current_node is not None:
-            print(current_node.data)
             current_node = current_node.next
         print( "*"*50 )
 
@@ -130,18 +160,28 @@ class DoubleList:
 class PriorityQueue:
     def __init__( self, size ):
         self.frequencyBins = [ DoubleList() for _ in range( size ) ]
-
+        self.maxIndex = size - 1
+        
     def updateFrequency(self, node):
         oldIndex = node.data.count - 3
         inLastBin = oldIndex >= len(self.frequencyBins) - 2
         inBin = oldIndex >= 0
         #(count - 4) puts as at second to last bin the last bin stores different frequencies
         if inBin and not inLastBin:
-            print(self.frequencyBins[oldIndex].head,'in update')
             self.frequencyBins[ oldIndex ].remove(node)
         newIndex = (len(self.frequencyBins) - 1) if inLastBin else oldIndex + 1
         self.frequencyBins[ newIndex ].append(node)
 
+    def remove( self, node ):
+        index = node.data.count - 2
+        inLastBin = index >= self.maxIndex
+        if not inLastBin:
+            tmpList = self.frequencyBins[index]
+            tmpList.remove( node )
+        else:
+            tmpList = self.frequencyBins[ self.maxIndex ]
+            tmpList.remove( node )
+            
 class PairRecord:
     def __init__(self, count, first):
         self.count = count
@@ -157,27 +197,31 @@ def linkPair(first, last):
     last.prev = oldPrev
     last.next = first
 
+
+    
 class Encoder:
 
-    def __init__(self, input):
+    def __init__(self, input, isFile,uniInt):
         self.activePairs = {}
-        with open(input) as f:
-            startRule = f.read()
-        n = len(startRule)
-        self.uniInt = 191
+        if isFile:
+            with open(input) as f:
+                self.startRule = f.read()
+        else:
+            self.startRule = input
+        self.uniInt = uniInt
+        n = len(self.startRule)
         self.sizePq = math.ceil( math.sqrt(n) )
         #allocate exact space for sequence array
         self.sequenceArray = SequenceArray( n )
         #allocate space for priority queue 
         self.priorQueue = PriorityQueue( self.sizePq )
-        for symbol in startRule:
+        for symbol in self.startRule:
             self.sequenceArray.append( symbol )
 
     def generateDiagramFreq(self):
         #we don't want empty records
         for (a,b) in pairwise( node for node in self.sequenceArray if node.data is not None ):
             pair = a.data[SYMBOL] + b.data[SYMBOL]
-            print('######',pair,'###########')
             if pair not in self.activePairs:
                 prNode = Node( PairRecord(1,a) )                
                 self.activePairs[ pair ] = prNode 
@@ -209,44 +253,41 @@ class Encoder:
                     maxPr = bin.head
                     break
         if maxPr is None:
-            return False
-        #        self.priorQueue.remove( maxPr )
+            return( "","","","")
+        self.priorQueue.remove( maxPr )
         UNI = self.nextUni()
         for this in maxPr.data.first:
+            if this.data is None:
+                continue
+
+            #index of replaced thing
             index = this.data[INDEX]
+            #is the thing in the array None it has been removed
+            if self.sequenceArray.pool[index].data is None:
+                continue
+            #create node to replace left thing
             newnode = Node( (UNI,index) )
             newnode.prev = newnode
             newnode.next = newnode
+            #replace the old node
+            lPart = this.data[SYMBOL]
+            rthing = self.sequenceArray.pool[index + 1]
+            rPart = rthing.data[SYMBOL]
             self.sequenceArray.pool[index] = newnode
-            nextnode = None
-            nextnextnode = None
-            #there is a next thing
-            if (index + 1) < self.sequenceArray.nextIndex:
-                nextnode = self.sequenceArray.pool[index + 1]
-                nextnode.data = None
-                if (index + 2) < self.sequenceArray.nextIndex:
-                    nextnextnode = self.sequenceArray.pool[index + 2]
-                    nextnode.next = nextnextnode
-                    nextnode.prev = nextnode
-                else:
-                    nextnode.prev = nextnode
-                    nextnode.next = None
-        return True
+            self.sequenceArray.deleteNext(newnode)
+
+        return( "".join(n.data[SYMBOL] for n in self.sequenceArray if n.data is not None),lPart,rPart,UNI)
     
 def replaceMax( encoder, uINT ):
     maxPR = max( encoder.activePairs.values(), key=lambda x: x.data.count )
     PRcount = maxPR.data.count
     maxrulefirst = maxPR.data.first
-    print('maxrule firsts')
-    for x in maxrulefirst:
-        print(x)
     UNI = chr(uINT)
     input = []
     if PRcount > 1:
         for ap in maxrulefirst:
             tmp = encoder.sequenceArray.pool[ ap[INDEX] ]
             newnode = Node( (UNI, ap[INDEX]) )
-            print( tmp.data,'inmaxrul')
             encoder.sequenceArray.pool[ ap[INDEX] ] = newnode
             encoder.sequenceArray.pool.pop( ap[INDEX] + 1 )
         for x in encoder.sequenceArray:
@@ -256,143 +297,24 @@ def replaceMax( encoder, uINT ):
 #final res -> (stream, grammer)
 def main():
     star = "*"
-    repair = Encoder('test.txt')
+    repair = Encoder('shakespeare.txt', True, 191)
+    lenStart = len( repair.startRule )
     repair.generateDiagramFreq()
-    for x in repair.sequenceArray:
-        print(x)
-    while repair.replaceMostFreq():
-        print(star*50)
-        for x in repair.sequenceArray:
-            print(x)
-
+    input,l,r,u = repair.replaceMostFreq()
+    rules = []
+    while input != "":
+        rules.append( (u,l+r) )
+        lenEnd = len( input )
+        repair = Encoder(input, False, repair.uniInt)
         repair.generateDiagramFreq()
-        
-    '''
-    for x in repair.sequenceArray:
-        print(x)
-    print(star*50)
-    repair.generateDiagramFreq()
-    for x in repair.sequenceArray:
-        print(x)
-    repair.replaceMostFreq()
-    for x in repair.sequenceArray:
-        print(x)
-    '''
-    '''
-    repair.replaceMostFreq()
-    print(star*50)
-    for x in repair.sequenceArray:
-        print(x)
-    print(star*50)
-    repair.generateDiagramFreq()
-    repair.replaceMostFreq()
-    for x in repair.sequenceArray:
-        print(x)
-    '''
-    '''    
-    print('after replacement')
-    for x in repair.sequenceArray:
-        print(x)
-    repair.generateDiagramFreq()
-    print('after second gen dia freq')
-    repair.replaceMostFreq()
-    print('after replacement')
-    for x in repair.sequenceArray:
-        print(x)
-    '''
-    '''
-    uniInt = 191
-    startRule = ""
-    print('start rule')
-    for x in c.sequenceArray:
-        startRule += x.data[SYMBOL]
-    print(startRule)
-    c.generateDiagramFreq()
-    input = replaceMax( c, uniInt )
-    print(':',input)
-    uniInt += 1
-    while input != []:
-        c = Encoder( input, False)
-        c.generateDiagramFreq()
-        input = replaceMax(c,uniInt)
-        uniInt += 1
-        print(input)
-    startRule = ""
-    print('start rule')
-    for x in c.sequenceArray:
-        startRule += x.data[SYMBOL]
-    print(startRule)
-
-    '''
-    '''
-    print('uniInt',uniInt)
-    print('len input', len(input) )
-    for x in input:
-        print(x)
-        
-    d = Encoder(input,False)
-    d.generateDiagramFreq()
-    input = replaceMax( d, uniInt )
-    uniInt += 1
-    print('uniInt',uniInt)
-    print('len input', len(input) )
-    for x in input:
-        print(x)
-    d = Encoder(input,False)
-    d.generateDiagramFreq()
-    input = replaceMax( d,uniInt )
-    uniInt += 1
-    print('uniInt',uniInt)
-    print('len input', len(input) )
-    for x in input:
-        print(x)
-    '''
-    '''       
-    print("after second pass")
-    for x in input:
-        print(x)
-    c = Encoder( input, False )
-    c.generateDiagramFreq()
-    input = replaceMax( c, uniInt )
+        input,l,r,u = repair.replaceMostFreq()
     
-    print("after third pass")
-    for x in input:
-        print(x)
-    '''
-    '''
-    newindex = 0
-    for x in c.sequenceArray:
-        sym, idx = x.data
-        x.data = (sym, newindex)
-        newindex += 1
-    for x in c.sequenceArray:
-        print(x)
+    for x in rules:
+        print(x[0] ,'->',x[1])
 
-    c.activePairs = {}
-    c.priorQueue = PriorityQueue( c.sizePq )
-    c.generateDiagramFreq()
-    print('after second pass' )
-    maxrulefirst = max( c.activePairs.values(), key=lambda x: x.data.count ).data.first
+    print('compression ratio', lenStart/lenEnd , 'to 1' )
 
-    for x in c.priorQueue.frequencyBins:
-        print( x )
-    '''
-    '''
-    for n in c.sequenceArray:
-        print( n )
-    c.activePairs = {}
-    c.generateDiagramFreq()
-    for ap in c.sequenceArray:
-        print( ap )
-    ''' 
-    '''
-    for bin in reversed(c.priorQueue.frequencyBins):
-        bin.show()
-    pr = next(iter(c.priorQueue.frequencyBins[3]))
-    first = pr.data.first 
-    for f in first:
-        print(f)
-    ''' 
+
 if __name__ == "__main__":
     main()
 
